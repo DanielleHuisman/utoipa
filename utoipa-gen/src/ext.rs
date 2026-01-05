@@ -180,6 +180,7 @@ fn get_actual_body_type<'t>(ty: &'t TypeTree<'t>) -> Option<&'t TypeTree<'t>> {
     ty.path
         .as_deref()
         .expect("RequestBody TypeTree must have syn::Path")
+        .path
         .segments
         .iter()
         .find_map(|segment| match &*segment.ident.to_string() {
@@ -483,6 +484,8 @@ pub mod fn_arg {
         Option<std::borrow::Cow<'_, syn::Path>>,
         proc_macro2::TokenStream,
     )> {
+        use std::borrow::Cow;
+
         let parameter_in_provider = if arg.ty.is("Path") {
             quote! { || Some (utoipa::openapi::path::ParameterIn::Path) }
         } else if arg.ty.is("Query") {
@@ -498,7 +501,8 @@ pub mod fn_arg {
             .into_iter()
             .next()
             .unwrap()
-            .path;
+            .path
+            .map(|path| Cow::Owned(path.path.clone()));
 
         Some((type_path, parameter_in_provider))
     }

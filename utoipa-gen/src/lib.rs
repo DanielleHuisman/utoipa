@@ -162,7 +162,7 @@ static CONFIG: once_cell::sync::Lazy<utoipa_config::Config> =
 ///   _`Value`_ will be rendered as any OpenAPI value (i.e. no `type` restriction).
 /// * `inline` If the type of this field implements [`ToSchema`][to_schema], then the schema definition
 ///   will be inlined. **warning:** Don't use this for recursive data types!
-///   
+///
 ///   **Note!**<br>Using `inline` with generic arguments might lead to incorrect spec generation.
 ///   This is due to the fact that during compilation we cannot know how to treat the generic
 ///   argument and there is difference whether it is a primitive type or another generic type.
@@ -3438,6 +3438,7 @@ impl<'g> GenericsExt for &'g syn::Generics {
             .path
             .as_ref()
             .expect("TypeTree of generic object must have a path")
+            .path
             .segments
             .last()
             .expect("Generic object path must have at least one segment")

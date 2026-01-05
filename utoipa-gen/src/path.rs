@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::ops::Deref;
 use std::{io::Error, str::FromStr};
 
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
@@ -750,7 +749,7 @@ impl<'p> PathTypeTree for TypeTree<'p> {
                         .flat_map(|child| child.path.as_ref().zip(Some(child.is_option())))
                         .any(|(path, nullable)| {
                             SchemaType {
-                                path: Cow::Borrowed(path),
+                                path: Cow::Borrowed(&path.path),
                                 nullable,
                             }
                             .is_byte()
@@ -763,7 +762,7 @@ impl<'p> PathTypeTree for TypeTree<'p> {
             .path
             .as_ref()
             .map(|path| SchemaType {
-                path: Cow::Borrowed(path.deref()),
+                path: Cow::Borrowed(&path.path),
                 nullable: self.is_option(),
             })
             .map(|schema_type| schema_type.is_primitive())

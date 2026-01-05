@@ -122,7 +122,7 @@ impl<'a, T> Iterator for TypeTreeValueIter<'a, T> {
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone)]
 pub struct TypeTree<'t> {
-    pub path: Option<Cow<'t, Path>>,
+    pub path: Option<Cow<'t, TypePath>>,
     #[allow(unused)]
     pub span: Option<Span>,
     pub value_type: ValueType,
@@ -130,16 +130,21 @@ pub struct TypeTree<'t> {
     pub children: Option<Vec<TypeTree<'t>>>,
 }
 
-pub trait SynPathExt {
+pub trait SynTypePathExt {
     /// Rewrite path will perform conditional substitution over the current path replacing
     /// [`PathSegment`]s and [`syn::Ident`] with aliases if found via [`TypeTree::get_alias_type`]
     /// or by [`PrimitiveType`] if type in question is known to be a primitive type.
-    fn rewrite_path(&self) -> Result<syn::Path, Diagnostics>;
+    fn rewrite_path(&self) -> Result<syn::TypePath, Diagnostics>;
 }
 
-impl<'p> SynPathExt for &'p Path {
-    fn rewrite_path(&self) -> Result<syn::Path, Diagnostics> {
+impl<'p> SynTypePathExt for &'p TypePath {
+    fn rewrite_path(&self) -> Result<syn::TypePath, Diagnostics> {
+        if self.qself.is_some() {
+            return Ok((*self).clone());
+        }
+
         let last_segment = self
+            .path
             .segments
             .last()
             .expect("syn::Path must have at least one segment");
@@ -163,7 +168,7 @@ impl<'p> SynPathExt for &'p Path {
                                 .expect("TypeTree must have a path")
                                 .as_ref();
 
-                            if let Some(default_type) = PrimitiveType::new(path) {
+                            if let Some(default_type) = PrimitiveType::new(&path.path) {
                                 args.push(GenericArgument::Type(default_type.ty.clone()));
                             } else {
                                 let inner = path.rewrite_path()?;
@@ -202,29 +207,54 @@ impl<'p> SynPathExt for &'p Path {
             .expect("TypeTree for ident must have a path")
             .as_ref();
 
-        if let Some(default_type) = PrimitiveType::new(path) {
+        if let Some(default_type) = PrimitiveType::new(&path.path) {
             let ty = &default_type.ty;
             let ident: Ident = syn::parse_quote!(#ty);
 
             segment.ident = ident;
         } else {
             let ident = path
+                .path
                 .get_ident()
                 .expect("Path of Ident must have Ident")
                 .clone();
             segment.ident = ident;
         }
 
-        let path = syn::Path {
-            segments: if last_segment == &segment {
-                self.segments.clone()
-            } else {
-                Punctuated::from_iter(std::iter::once(segment))
+        let path = syn::TypePath {
+            qself: None,
+            path: syn::Path {
+                segments: if last_segment == &segment {
+                    self.path.segments.clone()
+                } else {
+                    Punctuated::from_iter(std::iter::once(segment))
+                },
+                leading_colon: self.path.leading_colon,
             },
-            leading_colon: self.leading_colon,
         };
 
         Ok(path)
+    }
+}
+
+enum PathOrTypePath<'t> {
+    Path(&'t Path),
+    TypePath(&'t TypePath),
+}
+
+impl<'t> PathOrTypePath<'t> {
+    fn path(&self) -> &'t Path {
+        match self {
+            PathOrTypePath::Path(path) => *path,
+            PathOrTypePath::TypePath(type_path) => &type_path.path,
+        }
+    }
+
+    fn span(&self) -> Span {
+        match self {
+            PathOrTypePath::Path(path) => path.span(),
+            PathOrTypePath::TypePath(type_path) => type_path.span(),
+        }
     }
 }
 
@@ -293,12 +323,15 @@ impl TypeTree<'_> {
             .into_iter()
             .map(|value| {
                 let path = match value {
-                    TypeTreeValue::TypePath(type_path) => &type_path.path,
-                    TypeTreeValue::Path(path) => path,
+                    TypeTreeValue::TypePath(type_path) => PathOrTypePath::TypePath(type_path),
+                    TypeTreeValue::Path(path) => PathOrTypePath::Path(path),
                     TypeTreeValue::Array(value, span) => {
                         let array: Path = Ident::new("Array", span).into();
                         return Ok(TypeTree {
-                            path: Some(Cow::Owned(array)),
+                            path: Some(Cow::Owned(TypePath {
+                                qself: None,
+                                path: array,
+                            })),
                             span: Some(span),
                             value_type: ValueType::Object,
                             generic_type: Some(GenericType::Vec),
@@ -333,6 +366,7 @@ impl TypeTree<'_> {
 
                 // there will always be one segment at least
                 let last_segment = path
+                    .path()
                     .segments
                     .last()
                     .expect("at least one segment within path in TypeTree::convert_types");
@@ -349,7 +383,7 @@ impl TypeTree<'_> {
 
     // Only when type is a generic type we get to this function.
     fn resolve_schema_type<'t>(
-        path: &'t Path,
+        path: PathOrTypePath<'t>,
         last_segment: &'t PathSegment,
     ) -> Result<TypeTree<'t>, Diagnostics> {
         if last_segment.arguments.is_empty() {
@@ -411,15 +445,24 @@ impl TypeTree<'_> {
         Ok(generic_schema_type)
     }
 
-    fn convert<'t>(path: &'t Path, last_segment: &'t PathSegment) -> TypeTree<'t> {
+    fn convert<'t>(path: PathOrTypePath<'t>, last_segment: &'t PathSegment) -> TypeTree<'t> {
         let generic_type = Self::get_generic_type(last_segment);
         let schema_type = SchemaType {
-            path: Cow::Borrowed(path),
+            path: match path {
+                PathOrTypePath::Path(path) => Cow::Borrowed(path),
+                PathOrTypePath::TypePath(path) => Cow::Borrowed(&path.path),
+            },
             nullable: matches!(generic_type, Some(GenericType::Option)),
         };
 
         TypeTree {
-            path: Some(Cow::Borrowed(path)),
+            path: Some(match path {
+                PathOrTypePath::Path(path) => Cow::Owned(TypePath {
+                    qself: None,
+                    path: path.clone(),
+                }),
+                PathOrTypePath::TypePath(path) => Cow::Borrowed(path),
+            }),
             span: Some(path.span()),
             value_type: if schema_type.is_primitive() {
                 ValueType::Primitive
@@ -467,7 +510,8 @@ impl TypeTree<'_> {
             .path
             .as_ref()
             .map(|path| {
-                path.segments
+                path.path
+                    .segments
                     .last()
                     .expect("expected at least one segment in TreeTypeValue path")
                     .ident
@@ -511,6 +555,7 @@ impl TypeTree<'_> {
             .path
             .as_ref()
             .ok_or_else(|| syn::Error::new(self.path.span(), "cannot get TypeTree::path, did you call this on `tuple` or `unit` type type tree?"))?
+            .path
             .segments
             .last()
             .expect("Path must have segments");
@@ -1091,7 +1136,7 @@ impl ComponentSchema {
         let validate = |feature: &Feature| {
             let type_path = &**type_tree.path.as_ref().unwrap();
             let schema_type = SchemaType {
-                path: Cow::Borrowed(type_path),
+                path: Cow::Borrowed(&type_path.path),
                 nullable: nullable
                     .map(|nullable| nullable.value())
                     .unwrap_or_default(),
@@ -1145,7 +1190,7 @@ impl ComponentSchema {
             ValueType::Primitive => {
                 let type_path = &**type_tree.path.as_ref().unwrap();
                 let schema_type = SchemaType {
-                    path: Cow::Borrowed(type_path),
+                    path: Cow::Borrowed(&type_path.path),
                     nullable,
                 };
                 if schema_type.is_unsigned_integer() {
@@ -1164,7 +1209,7 @@ impl ComponentSchema {
                     utoipa::openapi::ObjectBuilder::new().schema_type(#schema_type_tokens)
                 });
 
-                let format = KnownFormat::from_path(type_path)?;
+                let format = KnownFormat::from_path(&type_path.path)?;
                 if format.is_known_format() {
                     tokens.extend(quote! {
                         .format(Some(#format))
@@ -1244,7 +1289,7 @@ impl ComponentSchema {
 
                     if is_inline {
                         let schema_type = SchemaType {
-                            path: Cow::Borrowed(&rewritten_path),
+                            path: Cow::Borrowed(&rewritten_path.path),
                             nullable,
                         };
                         let index =
@@ -1323,7 +1368,7 @@ impl ComponentSchema {
                         schema.to_tokens(tokens);
                     } else {
                         let schema_type = SchemaType {
-                            path: Cow::Borrowed(&rewritten_path),
+                            path: Cow::Borrowed(&rewritten_path.path),
                             nullable,
                         };
                         let index =
@@ -1538,6 +1583,7 @@ impl ComponentSchema {
                 .as_deref()
                 .expect("child TypeTree must have a Path, did you call this on array or tuple?");
             let is_const = path
+                .path
                 .get_ident()
                 .map(|path_ident| {
                     generics.params.iter().any(
