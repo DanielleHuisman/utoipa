@@ -218,6 +218,7 @@ impl<'p> SynTypePathExt for &'p TypePath {
             let ident: Ident = syn::parse_quote!(#ty);
 
             segment.ident = ident;
+            segment.arguments = PathArguments::None
         } else {
             let ident = path
                 .path
