@@ -13,7 +13,7 @@ pub enum SchemaTypeInner {
     Object,
     /// Indicates string type of content.
     String,
-    /// Indicates integer type of content.    
+    /// Indicates integer type of content.
     Integer,
     /// Indicates floating point number type of content.
     Number,
@@ -215,7 +215,15 @@ fn is_primitive(name: &str) -> bool {
 fn is_primitive_chrono(name: &str) -> bool {
     matches!(
         name,
-        "DateTime" | "Date" | "NaiveDate" | "NaiveTime" | "Duration" | "NaiveDateTime"
+        "Date"
+            | "DateTime"
+            | "Duration"
+            | "FixedOffset"
+            | "NaiveDate"
+            | "NaiveDateTime"
+            | "NaiveTime"
+            | "TimeDelta"
+            | "Utc"
     )
 }
 
@@ -269,7 +277,7 @@ impl ToTokensDiagnostics for SchemaType<'_> {
             "f32" | "f64" => schema_type_tokens(tokens, SchemaTypeInner::Number, self.nullable),
 
             #[cfg(feature = "chrono")]
-            "DateTime" | "NaiveDateTime" | "NaiveDate" | "NaiveTime" => {
+            "DateTime" | "NaiveDateTime" | "NaiveDate" | "NaiveTime" | "TimeDelta" => {
                 schema_type_tokens(tokens, SchemaTypeInner::String, self.nullable)
             }
 
@@ -406,6 +414,9 @@ impl KnownFormat {
             #[cfg(feature = "chrono")]
             "DateTime" | "NaiveDateTime" => Self::DateTime,
 
+            #[cfg(feature = "chrono")]
+            "TimeDelta" => Self::Duration,
+
             #[cfg(any(feature = "chrono", feature = "time", feature = "jiff_0_2"))]
             "Date" => Self::Date,
 
@@ -526,6 +537,7 @@ impl Parse for KnownFormat {
                 "Date" => Ok(Self::Date),
                 "DateTime" => Ok(Self::DateTime),
                 "Duration" => Ok(Self::Duration),
+                "TimeDelta" => Ok(Self::Duration),
                 "Password" => Ok(Self::Password),
                 #[cfg(feature = "uuid")]
                 "Uuid" => Ok(Self::Uuid),
@@ -700,7 +712,8 @@ impl PrimitiveType {
             "f32" | "f64" => syn::parse_quote!(#path),
 
             #[cfg(feature = "chrono")]
-            "DateTime" | "NaiveDateTime" | "NaiveDate" | "NaiveTime" => {
+            "DateTime" | "FixedOffset" | "NaiveDateTime" | "NaiveDate" | "NaiveTime"
+            | "TimeDelta" | "Utc" => {
                 syn::parse_quote!(String)
             }
 

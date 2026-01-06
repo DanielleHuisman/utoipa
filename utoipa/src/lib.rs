@@ -248,6 +248,13 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::option::Option;
 
+#[cfg(feature = "chrono")]
+#[allow(deprecated, reason = "allow deprecated Date struct")]
+use chrono::{
+    Date, DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta, TimeZone, Utc,
+};
+#[cfg(any(feature = "decimal", feature = "decimal_float"))]
+use rust_decimal::Decimal;
 #[cfg(feature = "macros")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "macros")))]
 pub use utoipa_gen::*;
@@ -799,6 +806,30 @@ impl PartialSchema for serde_json::Value {
 
 impl ToSchema for serde_json::Value {}
 
+#[cfg(feature = "chrono")]
+#[rustfmt::skip]
+impl_to_schema!(
+    FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta, Utc
+);
+
+#[cfg(feature = "chrono")]
+#[allow(deprecated, reason = "allow deprecated Date struct")]
+impl<Tz: TimeZone> ToSchema for Date<Tz> {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed(stringify!(Date))
+    }
+}
+
+#[cfg(feature = "chrono")]
+impl<Tz: TimeZone> ToSchema for DateTime<Tz> {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed(stringify!(DateTime))
+    }
+}
+
+#[cfg(any(feature = "decimal", feature = "decimal_float"))]
+impl_to_schema!(Decimal);
+
 // Create `utoipa` module so we can use `utoipa-gen` directly from `utoipa` crate.
 // ONLY for internal use!
 #[doc(hidden)]
@@ -1262,6 +1293,13 @@ impl_from_for_number!(
 #[cfg(feature = "macros")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "macros")))]
 pub mod __dev {
+    #[cfg(feature = "chrono")]
+    #[allow(deprecated, reason = "allow deprecated Date struct")]
+    use chrono::{
+        Date, DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta, TimeZone, Utc,
+    };
+    #[cfg(any(feature = "decimal", feature = "decimal_float"))]
+    use rust_decimal::Decimal;
     use utoipa_gen::schema;
 
     use crate::{utoipa, OpenApi, PartialSchema};
@@ -1554,6 +1592,34 @@ pub mod __dev {
             schema_or_compose::<T>(schemas, 0)
         }
     }
+
+    #[cfg(feature = "chrono")]
+    #[rustfmt::skip]
+    impl_compose_schema!(
+        FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta, Utc
+    );
+
+    #[cfg(feature = "chrono")]
+    #[allow(deprecated, reason = "allow deprecated Date struct")]
+    impl<Tz: TimeZone> ComposeSchema for Date<Tz> {
+        fn compose(
+            _: Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>,
+        ) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+            schema!(Date).into()
+        }
+    }
+
+    #[cfg(feature = "chrono")]
+    impl<Tz: TimeZone> ComposeSchema for DateTime<Tz> {
+        fn compose(
+            _: Vec<utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>>,
+        ) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+            schema!(DateTime).into()
+        }
+    }
+
+    #[cfg(any(feature = "decimal", feature = "decimal_float"))]
+    impl_compose_schema!(Decimal);
 
     // For types not implementing `ToSchema`
     pub trait SchemaReferences {

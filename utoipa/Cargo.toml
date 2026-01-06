@@ -34,9 +34,9 @@ debug = ["utoipa-gen?/debug"]
 actix_extras = ["utoipa-gen?/actix_extras"]
 rocket_extras = ["utoipa-gen?/rocket_extras"]
 axum_extras = ["utoipa-gen?/axum_extras"]
-chrono = ["utoipa-gen?/chrono"]
-decimal = ["utoipa-gen?/decimal"]
-decimal_float = ["utoipa-gen?/decimal_float"]
+chrono = ["dep:chrono", "utoipa-gen?/chrono"]
+decimal = ["dep:rust_decimal", "utoipa-gen?/decimal"]
+decimal_float = ["dep:rust_decimal", "utoipa-gen?/decimal_float"]
 non_strict_integers = ["utoipa-gen?/non_strict_integers"]
 yaml = ["serde_norway", "utoipa-gen?/yaml"]
 uuid = ["utoipa-gen?/uuid"]
@@ -58,9 +58,11 @@ config = ["utoipa-gen?/config"]
 auto_into_responses = ["utoipa-gen?/auto_into_responses"]
 
 [dependencies]
+chrono = { version = "0.4.42", default-features = false, optional = true }
+rust_decimal = { version = "1.39.0", default-features = false, optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
-serde_norway = {version = "0.9.42", optional = true}
+serde_norway = { version = "0.9.42", optional = true }
 utoipa-gen = { version = "5.4.0", path = "../utoipa-gen", optional = true }
 indexmap = { version = "2", features = ["serde"] }
 
