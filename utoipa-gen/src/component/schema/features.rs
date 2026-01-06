@@ -106,7 +106,8 @@ impl Parse for MixedEnumFeatures {
             Deprecated,
             Description,
             Discriminator,
-            NoRecursion
+            NoRecursion,
+            Bound
         )))
     }
 }
