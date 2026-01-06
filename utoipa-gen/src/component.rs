@@ -139,7 +139,13 @@ pub trait SynTypePathExt {
 
 impl<'p> SynTypePathExt for &'p TypePath {
     fn rewrite_path(&self) -> Result<syn::TypePath, Diagnostics> {
-        if self.qself.is_some() {
+        if self.qself.is_some()
+            || self
+                .path
+                .segments
+                .first()
+                .is_some_and(|segment| segment.ident == "fortifier")
+        {
             return Ok((*self).clone());
         }
 
