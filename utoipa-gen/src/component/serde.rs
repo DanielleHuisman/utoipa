@@ -31,6 +31,7 @@ pub struct SerdeValue {
     pub flatten: bool,
     pub skip_serializing_if: bool,
     pub double_option: bool,
+    pub untagged: bool,
 }
 
 impl SerdeValue {
@@ -73,6 +74,7 @@ impl SerdeValue {
                         };
                     }
                     TokenTree::Ident(ident) if ident == "default" => value.default = true,
+                    TokenTree::Ident(ident) if ident == "untagged" => value.untagged = true,
                     _ => (),
                 }
 
@@ -246,6 +248,9 @@ pub fn parse_value(attributes: &[Attribute]) -> Result<SerdeValue, Diagnostics> 
             }
             if value.double_option {
                 acc.double_option = value.double_option;
+            }
+            if value.untagged {
+                acc.untagged = value.untagged;
             }
 
             acc

@@ -498,7 +498,13 @@ impl MixedEnumContent {
             generics: root.generics,
         };
 
-        let tokens_with_schema_references = match &serde_container.enum_repr {
+        let enum_repr = if variant_serde_rules.untagged {
+            &SerdeEnumRepr::Untagged
+        } else {
+            &serde_container.enum_repr
+        };
+
+        let tokens_with_schema_references = match enum_repr {
             SerdeEnumRepr::ExternallyTagged => {
                 let (enum_features, variant_features) =
                     MixedEnumContent::split_enum_features(variant_features);
@@ -595,7 +601,13 @@ impl MixedEnumContent {
             generics: root.generics,
         };
 
-        let tokens_with_schema_reference = match &serde_container.enum_repr {
+        let enum_repr = if variant_serde_rules.untagged {
+            &SerdeEnumRepr::Untagged
+        } else {
+            &serde_container.enum_repr
+        };
+
+        let tokens_with_schema_reference = match enum_repr {
             SerdeEnumRepr::ExternallyTagged => {
                 let (enum_features, variant_features) =
                     MixedEnumContent::split_enum_features(variant_features);
@@ -681,7 +693,13 @@ impl MixedEnumContent {
         );
         let name = renamed.unwrap_or(Cow::Owned(name));
 
-        match &serde_container.enum_repr {
+        let enum_repr = if variant_serde_rules.untagged {
+            &SerdeEnumRepr::Untagged
+        } else {
+            &serde_container.enum_repr
+        };
+
+        match enum_repr {
             SerdeEnumRepr::ExternallyTagged => EnumSchema::<PlainSchema>::new(name.as_ref())
                 .features(variant_features)
                 .to_token_stream(),
